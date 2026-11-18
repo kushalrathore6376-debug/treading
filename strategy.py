@@ -37,10 +37,27 @@ def has_only_lower_wick(candle):
 
 # --- Time Filter ---
 
+def _in_session_block(hour):
+    """True if local hour is inside thin-session block (e.g. 22:00–06:00)."""
+    if not getattr(config, "USE_SESSION_BLOCK", False):
+        return False
+    start = config.SESSION_BLOCK_START
+    end = config.SESSION_BLOCK_END
+    if start == end:
+        return False
+    if start > end:
+        # wraps midnight: e.g. 22 → 6 means hour>=22 or hour<6
+        return hour >= start or hour < end
+    return start <= hour < end
+
+
 def is_trading_hours():
+    now_local = datetime.now()
     now_utc = datetime.now(timezone.utc)
     now_ist = now_utc + timedelta(hours=5, minutes=30)
     if config.NO_TRADE_START_IST <= now_ist.hour < config.NO_TRADE_END_IST:
+        return False
+    if _in_session_block(now_local.hour):
         return False
     if not config.USE_TIME_FILTER:
         return True
@@ -48,16 +65,20 @@ def is_trading_hours():
 
 
 def is_trading_hours_for_time(time_str):
-    if not config.USE_TIME_FILTER:
-        return True
     try:
+        dt = None
         for fmt in ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S"]:
             try:
                 dt = datetime.strptime(str(time_str), fmt)
-                return config.TRADE_START_HOUR_UTC <= dt.hour < config.TRADE_END_HOUR_UTC
+                break
             except ValueError:
                 continue
-        dt = datetime.utcfromtimestamp(int(time_str))
+        if dt is None:
+            dt = datetime.utcfromtimestamp(int(time_str))
+        if _in_session_block(dt.hour):
+            return False
+        if not config.USE_TIME_FILTER:
+            return True
         return config.TRADE_START_HOUR_UTC <= dt.hour < config.TRADE_END_HOUR_UTC
     except Exception:
         return True
@@ -101,15 +122,22 @@ def get_current_adx(raw_candles):
     return None
 
 
+def get_current_atr(raw_candles):
+    atr = calculate_atr(raw_candles, config.ATR_PERIOD)
+    if atr and atr[-1] is not None:
+        return atr[-1]
+    return None
+
+
 # --- ATR Volatility Filter ---
 
 def has_enough_volatility(raw_candles):
     if not config.USE_ATR_FILTER:
         return True
-    atr = calculate_atr(raw_candles, config.ATR_PERIOD)
-    if not atr or atr[-1] is None:
+    atr = get_current_atr(raw_candles)
+    if atr is None:
         return True
-    return atr[-1] >= config.ATR_MIN_THRESHOLD
+    return atr >= config.ATR_MIN_THRESHOLD
 
 
 # --- Pattern Detection (2-candle HA pattern) ---

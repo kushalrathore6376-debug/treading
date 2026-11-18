@@ -39,7 +39,7 @@ INSTRUMENTS = {
         "trail_activation": 3.00,  # Trail starts at $3 profit
         "trail_distance": 3.00,  # SL trails $3 behind profit
         "trailing_tp_step": 3.00,  # TP ratchets up by $3 each time (faster breakeven)
-        "adx_min": 20,
+        "adx_min": 25,  # require stronger trend (was 20)
         "atr_min": 0.50,
         "use_time_filter": False,
         "trade_start_utc": 0,
@@ -53,6 +53,13 @@ INSTRUMENTS = {
         "sl_buffer": 0.30,  # pad SL 0.30 pts beyond structural level
         "no_trade_start_ist": 2,  # blackout start (2AM IST)
         "no_trade_end_ist": 4,  # blackout end   (4AM IST)
+        # Scenario B: thin-session block (local clock) + breakout chase band
+        "use_session_block": True,
+        "session_block_start": 22,  # no new trades from 22:00
+        "session_block_end": 6,     # until 06:00 (hour < 6 blocked)
+        "use_chase_filter": True,
+        "chase_min": 0.05,  # need at least 0.05 pts past breakout
+        "chase_max": 0.20,  # reject late chase beyond 0.20 pts
     },
     "BTCUSD": {
         "type": "crypto",
@@ -79,6 +86,12 @@ INSTRUMENTS = {
         "sl_buffer": 10.0,
         "no_trade_start_ist": 2,
         "no_trade_end_ist": 4,
+        "use_session_block": False,
+        "session_block_start": 22,
+        "session_block_end": 6,
+        "use_chase_filter": False,
+        "chase_min": 0.05,
+        "chase_max": 0.20,
     },
     "EURUSD": {
         "type": "forex",
@@ -105,6 +118,12 @@ INSTRUMENTS = {
         "sl_buffer": 0.00010,
         "no_trade_start_ist": 2,
         "no_trade_end_ist": 4,
+        "use_session_block": False,
+        "session_block_start": 22,
+        "session_block_end": 6,
+        "use_chase_filter": False,
+        "chase_min": 0.05,
+        "chase_max": 0.20,
     },
 }
 
@@ -177,3 +196,22 @@ SL_BUFFER = _profile["sl_buffer"]
 # IST blackout window (no new trades)
 NO_TRADE_START_IST = _profile["no_trade_start_ist"]
 NO_TRADE_END_IST = _profile["no_trade_end_ist"]
+
+# Thin liquidity session block (local clock hours) — Scenario B
+USE_SESSION_BLOCK = _profile.get("use_session_block", False)
+SESSION_BLOCK_START = _profile.get("session_block_start", 22)  # inclusive
+SESSION_BLOCK_END = _profile.get("session_block_end", 6)      # exclusive (< end)
+
+# Breakout chase band (pts past breakout at entry) — Scenario B
+USE_CHASE_FILTER = _profile.get("use_chase_filter", False)
+CHASE_MIN = _profile.get("chase_min", 0.05)
+CHASE_MAX = _profile.get("chase_max", 0.20)
+
+# How often to emit open-trade snapshots while in a position (cycles)
+TRADE_SNAPSHOT_EVERY_N = 10  # 10 * CHECK_INTERVAL ≈ 5s
+
+# Hybrid exit: small size takes first profit step; larger size ratchets
+# 0.02 lots → step ≈ $6 (TRAILING_TP_STEP * lots * CONTRACT_SIZE) → bank ~$6
+# 0.03+ lots → full ratchet trail
+USE_HYBRID_EXIT = True
+HYBRID_FIRST_PROFIT_MAX_LOTS = 0.02  # lots <= this → close at first profit step
