@@ -52,6 +52,8 @@ def _in_session_block(hour):
 
 
 
+
+
 def is_trading_hours():
     now_local = datetime.now()
     now_utc = datetime.now(timezone.utc)
