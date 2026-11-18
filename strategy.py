@@ -51,6 +51,7 @@ def _in_session_block(hour):
     return start <= hour < end
 
 
+
 def is_trading_hours():
     now_local = datetime.now()
     now_utc = datetime.now(timezone.utc)
