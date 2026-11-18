@@ -25,18 +25,6 @@ def has_only_upper_wick(candle):
             wick_ratio(lw, body) < config.NO_WICK_TOLERANCE)
 
 
-
-
-
-
-
-
-
-            
-
-
-
-
 def has_only_lower_wick(candle):
     body = body_size(candle)
     if body == 0:
