@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('config.py'\\).read\\(\\)\\); print\\('config.py OK'\\)\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('bot.py'\\).read\\(\\)\\); print\\('bot.py OK'\\)\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('broker.py'\\).read\\(\\)\\); print\\('broker.py OK'\\)\")",
+      "PowerShell(Select-String -Path \"c:\\\\Users\\\\Rajveer\\\\Desktop\\\\trading-bot\\\\trades.log\" -Pattern \"SIGNAL|FILLED|executed|closed|SL hit|RATCHET|10:5|11:0|12:1|12:2|12:3|12:4\" | ForEach-Object { $_.Line })",
+      "PowerShell(Select-String -Path \"c:\\\\Users\\\\Rajveer\\\\Desktop\\\\trading-bot\\\\trades.log\" -Pattern \"SIGNAL|FILLED|executed|SL hit|RATCHET|Trade closed\" | ForEach-Object { $_.Line })",
+      "Bash(Get-Content \"c:\\\\Users\\\\Rajveer\\\\Desktop\\\\trading-bot\\\\trades.log\")",
+      "Bash(Select-Object -Last 100)",
+      "Bash(python _analyze.py)",
+      "Bash(python -c ' *)",
+      "Bash(python backtest_compare.py)",
+      "Bash(python -u backtest_compare.py)",
+      "Bash(python -c \"open\\('templates/index.html','w'\\).write\\('<!-- placeholder -->'\\)\")",
+      "Bash(pip install *)",
+      "Bash(python -c \"from flask import Flask; from flask_socketio import SocketIO; from flask_cors import CORS; print\\('All imports OK'\\)\")",
+      "Bash(python brand.py)",
+      "Bash(del brand.py)",
+      "Bash(rm -f brand.py)",
+      "Bash(python patch_candles.py)",
+      "Bash(rm patch_candles.py)",
+      "Bash(python fix_tick.py)",
+      "Bash(rm fix_tick.py)",
+      "Bash(python fix_history.py)",
+      "Bash(Test-Path \"C:\\\\Users\\\\Rajveer\\\\Desktop\\\\TXo_-icon.webp\")",
+      "Read(//c/Users/Rajveer/Desktop/**)",
+      "Bash(python -c \"import weasyprint; print\\(weasyprint.__version__\\)\")",
+      "Bash(python -c \"import playwright; print\\('playwright ok'\\)\")",
+      "Bash(python -c \"from playwright.sync_api import sync_playwright; print\\('sync api ok'\\)\")",
+      "Bash(where chrome.exe)",
+      "Bash(where msedge.exe)",
+      "Read(//c/Program Files/Google/Chrome/Application/**)",
+      "Read(//c/Program Files \\(x86\\)/Google/Chrome/Application/**)",
+      "Read(//c/Program Files \\(x86\\)/Microsoft/Edge/Application/**)",
+      "Bash(\"C:/Program Files/Google/Chrome/Application/chrome.exe\" --headless --disable-gpu --no-pdf-header-footer --print-to-pdf=\"C:/Users/Rajveer/Downloads/amara_raja_green_graphite_proposal.pdf\" \"file:///C:/Users/Rajveer/Downloads/amara_raja_green_graphite_proposal.html\")",
+      "Bash(\"C:/Program Files/Google/Chrome/Application/chrome.exe\" --headless=new --disable-gpu --no-pdf-header-footer --run-all-compositor-stages-before-draw --virtual-time-budget=10000 --print-to-pdf=\"C:/Users/Rajveer/Downloads/amara_raja_green_graphite_proposal.pdf\" \"file:///C:/Users/Rajveer/Downloads/amara_raja_green_graphite_proposal.html\")"
+    ]
+  }
+}
