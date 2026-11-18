@@ -27,6 +27,16 @@ def has_only_upper_wick(candle):
 
 
 
+
+
+
+
+
+            
+
+
+
+
 def has_only_lower_wick(candle):
     body = body_size(candle)
     if body == 0:
