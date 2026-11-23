@@ -15,8 +15,22 @@ import logging
 import sys
 import time
 from datetime import datetime
+from pathlib import Path
 
-import MetaTrader5 as mt5
+# Live trading needs MetaTrader5 — Windows only
+try:
+    import MetaTrader5 as mt5
+except ImportError:
+    print(
+        "ERROR: MetaTrader5 is not available on this machine.\n"
+        "  - Live bot runs on Windows with MT5 installed.\n"
+        "  - On Mac: use download + UI only:\n"
+        "      python3 -m pip install -r requirements.txt\n"
+        "      # install Node.js, then:\n"
+        "      python3 download_history.py\n"
+        "      python3 app.py\n"
+    )
+    sys.exit(1)
 
 import config
 from broker import MT5Broker
@@ -25,6 +39,8 @@ from pattern_engine import (
     find_similar_patterns,
     get_cached_history,
 )
+
+Path("logs").mkdir(exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,

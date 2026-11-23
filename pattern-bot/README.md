@@ -12,24 +12,39 @@ This bot **only** trades when the *current* Gold M1 path looks like past windows
 
 ## Setup
 
+### Mac (download + validate UI only)
+
+`MetaTrader5` **does not install on Mac** — live trading is Windows-only.
+
+```bash
+cd pattern-bot
+python3 -m pip install -r requirements.txt
+
+# 1) Install Node.js (needed for Dukascopy download)
+#    https://nodejs.org  OR:  brew install node
+node -v && npx -v
+
+# 2) Download ~1 year Gold M1
+python3 download_history.py
+
+# 3) Validate UI
+python3 app.py
+# → http://127.0.0.1:5055/
+```
+
+### Windows (UI + live MT5 bot)
+
 ```powershell
-cd C:\Users\Clutch\Desktop\treader\pattern-bot
-py -m pip install -r requirements.txt
-
-# Needs Node.js (npx) — ~1 year M1 can take several minutes
+cd pattern-bot
+py -m pip install -r requirements-windows.txt
 py download_history.py
-
-# Optional: copy an existing CSV from the HA bot
-# copy ..\treading\download\*.csv download\
+py app.py
+py bot.py
 ```
 
 Edit `config.py` for MT5 login if needed.
 
 ## Validate data (UI)
-
-```powershell
-py app.py
-```
 
 Open **http://127.0.0.1:5055/**
 
@@ -40,7 +55,7 @@ Checklist:
 - Volume = Dukascopy relative volume (shape only)  
 - **Find similar patterns** — see historical matches + forward move
 
-## Run the pattern bot
+## Run the pattern bot (Windows + MT5)
 
 ```powershell
 py bot.py
