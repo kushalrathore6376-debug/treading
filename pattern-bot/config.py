@@ -30,7 +30,11 @@ PATTERN_EXCLUDE_RECENT = 500
 
 # Only trade when bias is clear
 REQUIRE_BIAS = True  # BUY or SELL from history consensus
-DRY_RUN = True       # True = log signals only, no orders (safe first)
+DRY_RUN = True       # True = log signals only, no MT5 orders (safe first)
+
+# Mac / no-MT5: bot auto-uses PAPER mode (like main dashboard demo).
+# Set True to force paper even on Windows.
+FORCE_PAPER_MODE = False
 
 # Loop
 CHECK_INTERVAL_SEC = 30

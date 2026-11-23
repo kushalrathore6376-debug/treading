@@ -12,16 +12,17 @@ This bot **only** trades when the *current* Gold M1 path looks like past windows
 
 ## Setup
 
-### Mac (download + validate UI only)
+### Mac (same idea as main dashboard demo)
 
-`MetaTrader5` **does not install on Mac** — live trading is Windows-only.
+MT5 package is Windows-only. On Mac the bot **still runs** in **PAPER mode**
+(history CSV = market, virtual signals in `logs/paper_trades.jsonl`) — like main
+dashboard falling back to demo when MT5 is missing.
 
 ```bash
 cd pattern-bot
 python3 -m pip install -r requirements.txt
 
-# 1) Install Node.js (needed for Dukascopy download)
-#    https://nodejs.org  OR:  brew install node
+# 1) Install Node.js — https://nodejs.org (LTS)
 node -v && npx -v
 
 # 2) Download ~1 year Gold M1
@@ -30,6 +31,9 @@ python3 download_history.py
 # 3) Validate UI
 python3 app.py
 # → http://127.0.0.1:5055/
+
+# 4) Pattern bot (PAPER on Mac — no crash)
+python3 bot.py
 ```
 
 ### Windows (UI + live MT5 bot)
@@ -42,7 +46,7 @@ py app.py
 py bot.py
 ```
 
-Edit `config.py` for MT5 login if needed.
+Edit `config.py` for MT5 login if needed. `DRY_RUN=False` only on Windows for real orders.
 
 ## Validate data (UI)
 

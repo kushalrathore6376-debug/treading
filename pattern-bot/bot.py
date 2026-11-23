@@ -1,46 +1,45 @@
 """
 Pattern Bot — trades ONLY from historical chart-shape consensus.
 
-Flow:
-  1. Pull recent M1 closes from MT5
-  2. Find similar windows in 1y Dukascopy history (normalized path)
-  3. If matches mostly went UP after → BUY; DOWN → SELL
-  4. Place small fixed-risk trade (or DRY_RUN log only)
+Modes (like main dashboard on Mac):
+  - MT5 available (Windows) → live candles + optional real orders
+  - No MT5 (Mac)            → PAPER mode: history CSV as market, virtual trades
 
-This is intentionally separate from the HA breakout bot in ../treading.
+Flow:
+  1. Get recent M1 closes (MT5 or last bars of downloaded history)
+  2. Find similar windows in 1y history
+  3. Consensus UP → BUY, DOWN → SELL
+  4. Enter (real / dry-run / paper ledger)
 """
 from __future__ import annotations
 
+import json
 import logging
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
 
-# Live trading needs MetaTrader5 — Windows only
-try:
-    import MetaTrader5 as mt5
-except ImportError:
-    print(
-        "ERROR: MetaTrader5 is not available on this machine.\n"
-        "  - Live bot runs on Windows with MT5 installed.\n"
-        "  - On Mac: use download + UI only:\n"
-        "      python3 -m pip install -r requirements.txt\n"
-        "      # install Node.js, then:\n"
-        "      python3 download_history.py\n"
-        "      python3 app.py\n"
-    )
-    sys.exit(1)
-
 import config
-from broker import MT5Broker
 from pattern_engine import (
+    analyze_recent,
     consensus_from_matches,
     find_similar_patterns,
     get_cached_history,
 )
 
 Path("logs").mkdir(exist_ok=True)
+
+try:
+    import MetaTrader5 as mt5
+    from broker import MT5Broker
+
+    MT5_AVAILABLE = True
+except Exception as exc:
+    mt5 = None
+    MT5Broker = None
+    MT5_AVAILABLE = False
+    _mt5_import_error = exc
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,11 +52,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 _last_signal_key = None
+PAPER_LEDGER = Path("logs/paper_trades.jsonl")
 
 
 def _scale_tp_from_avg_move(avg_move_pts: float) -> float:
-    """Use historical avg absolute move to set TP dollars (capped)."""
-    # 0.02 lots * 100 oz * 1 pt ≈ $2 per point
     pts = abs(avg_move_pts)
     dollars = pts * config.LOTS_FIXED * config.CONTRACT_SIZE
     return max(config.MAX_LOSS_DOLLARS, min(dollars, 40.0))
@@ -82,7 +80,51 @@ def evaluate_pattern(live_closes: list[float]) -> dict:
     return {"ok": True, **consensus}
 
 
-def maybe_enter(broker: MT5Broker, signal: dict):
+def _paper_log(event: dict):
+    event = {"ts": datetime.utcnow().isoformat() + "Z", **event}
+    with PAPER_LEDGER.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(event) + "\n")
+    logger.info(
+        f"PAPER {event.get('action')} {event.get('bias')} "
+        f"@ {event.get('entry')} conf={event.get('confidence')}"
+    )
+
+
+def maybe_enter_paper(signal: dict, entry: float):
+    global _last_signal_key
+
+    bias = signal.get("bias")
+    conf = signal.get("confidence", 0)
+    if bias not in ("BUY", "SELL"):
+        logger.info(f"No trade bias ({bias}) conf={conf}")
+        return
+    if conf < config.PATTERN_MIN_CONFIDENCE:
+        logger.info(f"Bias {bias} but conf {conf} < {config.PATTERN_MIN_CONFIDENCE}")
+        return
+
+    key = f"{bias}:{round(conf, 2)}:{signal.get('avg_move_pts')}"
+    if key == _last_signal_key:
+        return
+    _last_signal_key = key
+
+    tp_dollars = _scale_tp_from_avg_move(signal.get("avg_move_pts") or 0)
+    _paper_log(
+        {
+            "action": "SIGNAL",
+            "bias": bias,
+            "confidence": conf,
+            "entry": entry,
+            "lots": config.LOTS_FIXED,
+            "sl_dollars": config.MAX_LOSS_DOLLARS,
+            "tp_dollars": round(tp_dollars, 2),
+            "n": signal.get("n"),
+            "avg_move_pts": signal.get("avg_move_pts"),
+            "mode": "PAPER",
+        }
+    )
+
+
+def maybe_enter_mt5(broker, signal: dict):
     global _last_signal_key
 
     bias = signal.get("bias")
@@ -99,7 +141,6 @@ def maybe_enter(broker: MT5Broker, signal: dict):
         logger.info("Already in position — skip")
         return
 
-    # de-dupe same consensus within a short window
     key = f"{bias}:{round(conf, 2)}:{signal.get('avg_move_pts')}"
     if key == _last_signal_key:
         return
@@ -111,7 +152,6 @@ def maybe_enter(broker: MT5Broker, signal: dict):
         return
     entry = tick.ask if bias == "BUY" else tick.bid
 
-    # Temporarily scale TP from history
     old_tp = config.TAKE_PROFIT_DOLLARS
     config.TAKE_PROFIT_DOLLARS = _scale_tp_from_avg_move(signal.get("avg_move_pts") or 0)
     sl, tp = broker.dollar_sl_tp(entry, bias, lots)
@@ -124,32 +164,51 @@ def maybe_enter(broker: MT5Broker, signal: dict):
     )
 
     if config.DRY_RUN:
-        logger.info("DRY_RUN=True — order not sent. Set DRY_RUN=False in config.py to go live.")
+        logger.info("DRY_RUN=True — order not sent. Set DRY_RUN=False for live MT5 orders.")
         return
 
     broker.place(bias, lots, sl, tp)
 
 
-def main():
-    logger.info("=" * 60)
-    logger.info("  PATTERN BOT (history shape-match only)")
-    logger.info(f"  Instrument: {config.INSTRUMENT}")
-    logger.info(
-        f"  Lookback={config.PATTERN_LOOKBACK} Horizon={config.PATTERN_HORIZON} "
-        f"MinScore={config.PATTERN_MIN_SCORE} MinConf={config.PATTERN_MIN_CONFIDENCE}"
-    )
-    logger.info(f"  DRY_RUN={config.DRY_RUN} lots={config.LOTS_FIXED}")
-    logger.info("=" * 60)
+def run_paper_loop():
+    """Mac / no-MT5: scan patterns on downloaded history (like main demo mode)."""
+    logger.info("MODE: PAPER (no MT5) — using history CSV as market")
+    logger.info("Virtual signals → logs/paper_trades.jsonl")
 
-    # Warm history cache
-    hist = get_cached_history()
-    if not hist:
-        logger.error(
-            "No history CSV in download/. Run: py download_history.py"
-        )
-        sys.exit(1)
-    logger.info(f"History loaded: {len(hist)} bars")
+    while True:
+        try:
+            # Force refresh in case CSV was re-downloaded
+            hist = get_cached_history(force=False)
+            if len(hist) < config.PATTERN_LOOKBACK + 50:
+                logger.error("Not enough history. Run: python3 download_history.py")
+                time.sleep(config.CHECK_INTERVAL_SEC)
+                continue
 
+            # Same idea as UI "Find similar patterns" on latest bars
+            signal = analyze_recent(
+                lookback=config.PATTERN_LOOKBACK,
+                horizon=config.PATTERN_HORIZON,
+                top_k=config.PATTERN_TOP_K,
+                min_score=config.PATTERN_MIN_SCORE,
+            )
+            if not signal.get("ok"):
+                logger.warning(f"Pattern eval failed: {signal}")
+            else:
+                logger.info(
+                    f"Consensus {signal['bias']} conf={signal['confidence']} "
+                    f"↑{signal['up']} ↓{signal['down']} ↔{signal['flat']} "
+                    f"avg={signal['avg_move_pts']} | end={signal.get('query_end_utc')} "
+                    f"close={signal.get('query_close')}"
+                )
+                maybe_enter_paper(signal, float(signal.get("query_close") or 0))
+        except Exception as e:
+            logger.error(f"Cycle error: {e}")
+
+        time.sleep(config.CHECK_INTERVAL_SEC)
+
+
+def run_mt5_loop():
+    logger.info("MODE: MT5 live candles")
     broker = MT5Broker()
     try:
         while True:
@@ -170,15 +229,47 @@ def main():
                             f"↑{signal['up']} ↓{signal['down']} ↔{signal['flat']} "
                             f"avg={signal['avg_move_pts']}"
                         )
-                        maybe_enter(broker, signal)
+                        maybe_enter_mt5(broker, signal)
             except Exception as e:
                 logger.error(f"Cycle error: {e}")
 
             time.sleep(config.CHECK_INTERVAL_SEC)
-    except KeyboardInterrupt:
-        logger.info("Stopped")
     finally:
         broker.shutdown()
+
+
+def main():
+    force_paper = getattr(config, "FORCE_PAPER_MODE", False)
+    use_mt5 = MT5_AVAILABLE and not force_paper
+
+    logger.info("=" * 60)
+    logger.info("  PATTERN BOT (history shape-match)")
+    logger.info(f"  Instrument: {config.INSTRUMENT}")
+    logger.info(
+        f"  Lookback={config.PATTERN_LOOKBACK} Horizon={config.PATTERN_HORIZON} "
+        f"MinScore={config.PATTERN_MIN_SCORE} MinConf={config.PATTERN_MIN_CONFIDENCE}"
+    )
+    logger.info(
+        f"  MT5_AVAILABLE={MT5_AVAILABLE} FORCE_PAPER={force_paper} "
+        f"DRY_RUN={config.DRY_RUN} lots={config.LOTS_FIXED}"
+    )
+    if not MT5_AVAILABLE:
+        logger.info(f"  MT5 import skip: {_mt5_import_error}")
+    logger.info("=" * 60)
+
+    hist = get_cached_history()
+    if not hist:
+        logger.error("No history CSV in download/. Run: python3 download_history.py")
+        sys.exit(1)
+    logger.info(f"History loaded: {len(hist)} bars")
+
+    try:
+        if use_mt5:
+            run_mt5_loop()
+        else:
+            run_paper_loop()
+    except KeyboardInterrupt:
+        logger.info("Stopped")
 
 
 if __name__ == "__main__":
